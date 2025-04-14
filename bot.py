@@ -31,25 +31,29 @@ async def update_timer_message(channel, seconds):
         pomodoro_message = await channel.send(f"☕ Pomodoro Timer: {time_string} {'(Break 🌿)' if is_break else ''} {'(Paused ⏸️)' if is_paused else ''} 🌿")
         await pomodoro_message.pin()
 
-async def pomodoro_timer(channel, duration, break_duration):
+async def pomodoro_timer(channel, study_duration, break_duration):
     global remaining_time, pomodoro_running, is_paused, pomodoro_message, is_break
-    remaining_time = duration
     pomodoro_running = True
-    is_break = False
-    await update_timer_message(channel, duration)
-    while remaining_time > 0 and pomodoro_running:
-        if not is_paused:
-            await update_timer_message(channel, remaining_time)
-            await asyncio.sleep(1)
-            remaining_time -= 1
-        else:
-            await asyncio.sleep(1)
-    if pomodoro_running:
-        await channel.send("✨ Pomodoro timer finished! Take a moment to relax. 🍃")
+
+    while pomodoro_running:
+        is_break = False
+        remaining_time = study_duration
+        await update_timer_message(channel, study_duration)
+        while remaining_time > 0 and pomodoro_running:
+            if not is_paused:
+                await update_timer_message(channel, remaining_time)
+                await asyncio.sleep(1)
+                remaining_time -= 1
+            else:
+                await asyncio.sleep(1)
+        if pomodoro_running:
+            await channel.send("✨ Pomodoro timer finished! Take a moment to relax. 🍃")
+
         if pomodoro_running:
             is_break = True
             remaining_time = break_duration
             await channel.send("🌿 Break timer started! 🌿")
+            await update_timer_message(channel, break_duration)
             while remaining_time > 0 and pomodoro_running:
                 if not is_paused:
                     await update_timer_message(channel, remaining_time)
@@ -60,7 +64,6 @@ async def pomodoro_timer(channel, duration, break_duration):
             if pomodoro_running:
                 await channel.send("✨ Break timer finished! Back to focus. 📝")
 
-    pomodoro_running = False
     if pomodoro_message:
         await pomodoro_message.unpin()
         pomodoro_message = None
@@ -77,17 +80,17 @@ async def on_ready():
     except Exception as e:
         print(e)
 
-@bot.tree.command(name="pomodoro", description="Starts a Pomodoro timer with study and break times.")
+@bot.tree.command(name="pomodoro", description="Starts a Pomodoro timer with study and break times that loop until stopped.")
 async def pomodoro(interaction: discord.Interaction, study_time: int, break_time: int):
     global pomodoro_running
     if pomodoro_running:
         await interaction.response.send_message("⏳ A timer is already running. Please wait or stop the current timer. 🌿", ephemeral=True)
         return
     else:
-        duration = study_time * 60
+        study_duration = study_time * 60
         break_duration = break_time * 60
         await interaction.response.send_message(f"☕ Pomodoro timer started for {study_time} minutes with a {break_time} minute break! 🌿", ephemeral=True)
-        asyncio.create_task(pomodoro_timer(interaction.channel, duration, break_duration))
+        asyncio.create_task(pomodoro_timer(interaction.channel, study_duration, break_duration))
 
 @bot.tree.command(name="stop", description="Stops the currently running timer.")
 async def stop(interaction: discord.Interaction):
@@ -141,7 +144,7 @@ async def clear(interaction: discord.Interaction, amount: int):
 async def help_command(interaction: discord.Interaction):
     help_message = """
     📖 **Pomodoro Bot Help** 📖
-    `/pomodoro <study_time> <break_time>`: Starts a Pomodoro timer with study and break times in minutes. ☕
+    `/pomodoro <study_time> <break_time>`: Starts a Pomodoro timer with study and break times in minutes that loop until stopped. ☕
     `/stop`: Stops the currently running timer. 🛑
     `/pause`: Pauses the timer. ⏸️
     `/resume`: Resumes the paused timer. ▶️
